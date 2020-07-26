@@ -1,0 +1,251 @@
+Netty是什么？
+	异步事件驱动框架，用于快速开发高性能服务端和客户端
+	封装了JDK底层BIO和NIO模型，提供高可用的API
+	自带编解码器解决拆包粘包问题，用户只关心业务逻辑
+	精心设计的reactor线程模型，支持高并发海量连接
+	自带各种协议栈让你处理任何一种通用协议都不用动手
+
+有必要学吗？
+	各大开源项目选择Netty作为底层通信框架
+	更好的使用，少走弯路
+	遇到bug？单机连接数上不去？性能遇到瓶颈？如何调优
+	详解reactor线程模型
+
+客户端                      服务端
+2.新连接                  1.监听端口
+Channel                  NioEventLoop
+
+3.接收数据                  4.业务逻辑
+ByteBuf                    ChannelHandler
+                              。Pipeline
+                              。
+                              。
+                           ChannelHandler
+                           4.业务逻辑
+
+
+问题：
+服务端的socket在哪初始化？
+在哪里accept连接？
+
+Netty服务端启动
+1.创建服务端Channel
+    bind()【用户代码入口】
+    initAndRegister()【初始化并注册】
+    newChannel()【创建服务端channel】(反射)
+    init()[初始化服务端channel]
+
+2.初始化服务端Channel
+    set ChannelOptions，ChannelAttrs
+    set ChildOptions，ChildAttrs
+    config handler[配置服务端pipeline]
+    add ServerBootstrapAcceptor[添加连接器]
+
+3.注册selector
+    AbstractChannel.register(channel)【入口】
+        this.eventLoop = eventLoop[线程绑定]
+        register0()[实际注册]
+            doRegister()[调用jdk底层注册]
+            invokerHandlerAddedIfNeed()
+            fireChannelRegistered()[传播事件]
+
+4.端口绑定
+    AbstractUnsafe.bind()[入口]
+        doBind()
+            javaChannel().bind()[jdk底层绑定]
+        pipeline.fireChannelActive()[传播事件]
+            HeadContext.readIfAutoRead()
+
+
+
+反射创建服务端channel
+newSocket()[通过jdk来创建底层jdk channel]
+NIOServerSocketChannelConfig()[tcp参数设置]
+AbstractNioChannel()
+ConfigureBlocking(false)[阻塞模式]
+AbstractChannel()[创建id，unsafe，pipeline]
+
+
+
+NIOEventLoop
+
+三个问题：
+1.默认情况下，Netty服务端起多少个线程？何时启动？
+2.Netty是如何解决jdk空轮训bug的？
+3.Netty如何保证异步串行无锁化？
+
+
+1.NioEventLoop 创建
+    new NioEventLoopGroup()[线程组]
+        new ThreadPreTaskExecutor()[线程池创建器]
+        for(){newChild()} [构造NioEventLoop]
+        chooseFactory.newChooser()[线程选择器]
+
+2.NioEventLoop启动
+3.NioEventLoop执行逻辑
+
+
+ThreadPreTaskExecutor
+    每次执行任务都会创建一个线程实体
+    NioEventLoop线程命名规则 nioEventLoop-1-xx
+
+newChild
+    保存线程执行器ThreadPreTaskExecutor
+    创建一个MpscQueue
+    创建一个selector
+
+
+chooserFactory.newChooser)_
+    isPowerOfTwo[判断是否是2的幂]
+        PowerOfTwoEventExecutorChooser【优化】
+        index++&(length-1)
+    GenericEventExecutorChooser【普通】
+
+NioEventLoop 启动
+    服务端启动绑定端口
+    新连接介入通过chooser绑定一个NioEventLoop
+
+    bind() -> execute(task) [入口]
+        startThread -> doStartThread() [创建线程]
+            ThreadPreTaskExecutor.execute()
+                thread = Thread.currentThread()
+                NioEventLoop.run() [启动]
+
+
+NioEventLoop 执行
+    SingleThreadEventExecutor.this.run()
+
+    run() -> for(;;)
+        select() 【检查是否有io事件】
+        processSelectedKeys()[处理io事件]
+        runAllTasks()[处理异步任务队列]
+
+
+select()方法执行逻辑
+    deadLine以及任务穿插逻辑处理
+    阻塞式select
+    避免jdk空轮训的bug
+
+
+processSelectedKey()执行逻辑
+    selected ketSet优化
+    processSelectedKeysOptimized()
+
+
+runAllTasks()执行逻辑
+    task的分类和添加
+    任务的聚合
+    任务的执行
+
+
+
+Netty是在哪里检测有新连接介入的？
+
+    1.检测新连接->2.创建NioSocketChannel->3.分配线程及注册selector->4.向selector注册读事件
+
+    1.
+    processSelectedKey(key,channel)[入口]
+        NioMessageUnsafe.read()
+            doReadMessages()[while循环]
+             javaChannel.accept()
+
+    2.
+    new NioSocketChannel(parent,ch)[入口]
+        AbstractNioByteChannel(p,ch,op_read)
+            configureBlocking(false) & save op
+            create id,unsafe,pipeline
+        new NioSocketChannelConfig()
+            setTcpNodelay(true)禁止Nagle算法
+
+    3.
+
+新连接是怎样注册到NioEventLoop线程的？
+
+
+服务端Channel的pipeline构成
+
+    head->ServerBootstrapAcceptor->tail
+        添加childHandler
+        甚至options和attrs
+        选择NioEventLoop并注册Selector
+
+
+向selector注册读事件
+
+
+NioSocketChannel的创建
+
+Channel的分类
+                            AbstractChannel
+                           AbstractNioChannel
+               AbstractNioByteChannel  AbstractNioMessageChannel
+NioSocketChannel NioByteUnSafe  NioMessageUnSafe NioServerSocketChannel
+NioSocketChannelConfig                            NioServerSocketChannelConfig
+
+
+新连接NioEventLoop分配和selector注册
+
+
+pipeline初始化
+    Pipeline在创建channel的时候被创建
+    Pipeline节点数据结构：ChannelHandlerContext
+    Pipeline中两大哨兵：head和tail
+
+
+InBound的顺序是一致的
+OutBound的顺序是反的
+
+
+异常的传播
+
+netty内存分配
+
+    内存的类别
+    如何减少多线程内存分配之间的竞争
+    不同大小的内存是如何分配的
+
+  Pooled                    UnPooled
+从预先分配好的拿           直接向操作系统分配
+
+ Unsafe                        非unSafe
+jdk的unsafe                  不依赖jdk底层的对象
+
+ Heap                            Direct
+GC管理内存                     不受jvm控制
+
+
+ByteBufferAllocator
+
+
+内存规格
+   tiny     small       normal   huge
+0     512B         8k         16M
+
+
+命中缓存的分配逻辑
+    找到对应size的MemoryRegionCache
+    从queue中弹出一个entry给ByteBuf初始化
+    将弹出的entry扔到对象池进行复用
+
+
+arena chunk page subpage
+
+
+page级别的内存分配：allocaeNormal
+    尝试在现有的chunk上分配
+    创建一个chunk进行内存分配
+    初始化PooledByteBuf
+
+
+ByteBuf的释放
+    连续的内存区段加到缓存
+    标记连续的内存区段为未使用
+    ByteBuf加到对象池
+
+
+
+编码器
+    解码器基类
+
+
+
