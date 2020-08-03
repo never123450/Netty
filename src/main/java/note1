@@ -1,0 +1,26 @@
+0.bio
+
+1.nio
+    nio-selector
+    client注册自己感兴趣事件
+    Thread 轮询每个client是否有事件到达 如果有就一个一个处理 顺序处理完继续检测
+
+
+2.Reactor模型：
+Reactor中的组件：
+    1.Reactor：IO事件的派发者
+    2.Handler：和一个client通讯的实体，按这样的过程实现业务的处理
+    3.Acceptor：接受client连接，建立对应的client的Handler，并向Reactor注册此Handler
+
+
+nio核心组件：
+    channel、unsafe、buffer、selector
+
+io多路复用：
+
+
+1.默认情况下，netty服务端启多少个线程？
+2.Netty是如何解决jdk空循环的bug
+3.netty如何保证异步串行化
+
+
