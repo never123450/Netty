@@ -15,7 +15,7 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
  * 继承 ChannelInboundHandlerAdapter .因为 write() 方法的执行是异步的且 SimpleChannelInboundHandler 中的 channelRead 方法
  * 会自动释放来自于对方的 msg
  * @author: xwy
- * @create: 2:03 PM 2020/8/6
+ * @create: 2020-08-09 17:21:24
  **/
 
 public class SomeServerHandler extends ChannelInboundHandlerAdapter {
