@@ -1,13 +1,10 @@
 package demo.socket;
 
 /**
- *
- * @description: 
- *
+ * @description:
  * @author: xwy
- *
  * @create: 3:10 PM 2020/7/4
-**/
+ **/
 
 public class ServerBoot {
 

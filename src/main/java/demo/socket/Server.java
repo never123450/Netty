@@ -23,14 +23,14 @@ public class Server {
         }
     }
 
-    public void start(){
-        new Thread(()->{
+    public void start() {
+        new Thread(() -> {
             doStart();
         }).start();
     }
 
     private void doStart() {
-        while (true){
+        while (true) {
             try {
                 Socket client = serverSocket.accept();
                 new ClientHandler(client).start();

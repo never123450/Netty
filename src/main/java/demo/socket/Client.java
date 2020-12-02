@@ -5,26 +5,23 @@ import java.net.Socket;
 import java.util.concurrent.TimeUnit;
 
 /**
- *
  * @description:
- *
  * @author: xwy
- *
  * @create: 3:23 PM 2020/7/4
-**/
+ **/
 
 public class Client {
     private static final String HOST = "127.0.0.1";
     private static final int PORT = 8000;
     private static final int SLEEP_TIME = 5000;
 
-    public static void main(String[] args) throws Exception{
-        final Socket socket = new Socket(HOST,PORT);
-        new Thread(()->{
+    public static void main(String[] args) throws Exception {
+        final Socket socket = new Socket(HOST, PORT);
+        new Thread(() -> {
             System.out.println("客户端启动成功");
-            while (true){
+            while (true) {
                 String message = "hello world";
-                System.out.println("客户端发送数据："+message);
+                System.out.println("客户端发送数据：" + message);
                 try {
                     socket.getOutputStream().write(message.getBytes());
                 } catch (IOException e) {
