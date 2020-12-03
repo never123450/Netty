@@ -2,7 +2,6 @@ package io.netty.demo;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-//import org.junit.Test;
 
 import java.util.Arrays;
 
@@ -10,7 +9,11 @@ import java.util.Arrays;
  * bytebuf的常规API操作示例
  */
 public class ByteBufDemo {
-//    @Test
+
+    public static void main(String[] args) {
+        new ByteBufDemo().apiTest();
+    }
+
     public void apiTest() {
         //  +-------------------+------------------+------------------+
         //  | discardable bytes |  readable bytes  |  writable bytes  |

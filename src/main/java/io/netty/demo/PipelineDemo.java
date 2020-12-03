@@ -1,6 +1,13 @@
 package io.netty.demo;
 
-// -----链表形式调用------netty就是类似的这种形式
+
+/**
+ * @description: -----链表形式调用------netty就是类似的这种形式
+ * 责任链
+ * @author: xwy
+ * @create: 10:54 2020/12/3
+ **/
+
 public class PipelineDemo {
     /**
      * 初始化的时候造一个head，作为责任链的开始，但是并没有具体的处理
