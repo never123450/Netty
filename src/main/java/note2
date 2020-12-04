@@ -534,25 +534,126 @@ EventLoop-Thread --------------> Arena 负责buf分配管理    2.尝试从对�
 零拷贝机制  (ZeroCopyTest.java)
 Netty的零拷贝机制，是一种应用层的实现。和底层JVM、操作系统内存机制并无过多关联。
 
-1、CompositeByteBuf, 将多个ByteBuf合并为一个逻辑.上的ByteBuf,避免了各个ByteBuf之间的拷贝。
+1、CompositeByteBuf, 将多个ByteBuf合并为一个逻辑上的ByteBuf,避免了各个ByteBuf之间的拷贝。
 CompositeByteBuf compositeByteBuf =Unpooled.compositeBuffer();                      new Buffer复合缓冲区(虚拟)
 ByteBuf newBuffer = compositeByteBuf.addComponents(true, buffer1, buffer2);         buffer1  buffer2 ...
 
 2、wrapedBuffer()方法 ，将byte[]数组包装成ByteBuf对象。                               array        buffer
 ByteBuf newBuffer = Unpooled.wrappedBuffer(new byte[{1,2,3,4,5});                 {1,2,3}       memory
 
-
-3、slice()方法。 将- -个ByteBuf对象切分成多个ByteBuf对象。                              buffer       new buffer
-ByteBuf buffer1 = Unpooled.wrappedBuffer("hello".getBytes();                         hello         memory
-ByteBuf newBuffer = buffer1.slice(1, 2);                                                            unwarp
-
-
-使用 buteBuf 是 Netty 高性能很重要的一个原因
+3、slice()方法。 将一个ByteBuf对象切分成多个ByteBuf对象。                              buffer       new buffer
+ByteBuf buffer1 = Unpooled.wrappedBuffer("hello".getBytes());                        hello         memory
+ByteBuf newBuffer = buffer1.slice(1, 2);                                                          unwarp
 
 
+使用 byteBuf 是 Netty 高性能很重要的一个原因
+
+
+推送系统功能设计&优化百万连接 (TestCenter.java)
+
+尝试自己实现
+短连接:请求/响应之后，关闭已经建立的TCP连接，下次请求再建立一次连接。
+长连接:请求/响应之后，不关闭TCP连接，多次请求，复用同一个连接。
+为了避免频繁创建连接/释放连接带来的性能损耗，以及消息获取的的实时性，采用长连接的形式。
+
+                                        推消息
+客户端 -> 操作系统底层接口(send缓冲区) -------------> recv缓冲区 服务端
+                                        发请求
+
+粘包: Nagle 算法 - 客户端累积一定量或者缓冲一段时间再传输。 服务端缓冲区堆积。导致多个请求数据粘在一起。
+拆包:发送的数据大于发送缓冲区，进行分片传输。服务端缓冲区堆积，导致服务端读取的请求数据不完整。
+
+
+使用 WebSocket
+
+WebSocket 协议是基于 TCP 的一支新的网络协议
+它的出现实现了浏览器与服务器全双工(full-duplex)通信:允许服务器主动发送信息给客户端
+多客户端多语言多服务器支持:浏览器,php,java,ruby,nginx,python...等等
+
+    客户端                                     服务端
+                 GET/chat HTTp/1.1
+   请求连接     --------------------->         返回响应
+                  HTTP/1.1 101xx
+               <--------------------
+                        push
+    open        --------------------->
+                <---------------------
+                        send
 
 
 
+网络小知识:区分不同连接的方式,TCP 连接四元组
+服务器IP + 服务器PORT + 客户端IP + 客户端PORT
+
+服务器端口 9000                                  服务器提供 20 个端口
+最多 6W+                      调整               6W*20=120W
+客户端的端口号不够用      --------------->        复用客户端 6W+端口监听服务器 20 个端口
+
+netty实战
+0、启动客户端和服务端
+
+#测试环境: centos7 jdk8 2核4G
+
+#服务端启动
+java -Xmx4096m -Xms4096m -Dnetease . debug=true -cp netty-all-4.1.32.Final.jar:netty-push-1.0.0.jar push.server.WebSocketServer
+
+#客户端
+java - Xmx4096m -Xms4096m -Dnetease. debug false -Dnetease. pushserver .host=192.168.100.241 -cp netty-all-4.1.32.Final.jar:netty-push-1.0.0.jar
+push.client.WebSocketClient
+
+1、too many openFiles 服务端和测试机都改一下
+
+#进程最大文件打开添加参数最大限制
+vi /etc/security/limits . conf
+* soft nofile 1000000
+* hard nofile 1000000
+
+#全局隈制cat /proc/sys/fs/file-nr
+echo 1200000 > /proc/sys/fs/file-max
+
+2、客户端问题汇总
+
+#客户机开不了这么多连接，可能的问题原因端口开放数
+linux对外随机分配的端口是有限制,理论上单机对外端口数可达65535,但实际对外可建立的连接默认最大只有28232个
+查看: cat /proc/sys/net/ipv4/ip_ 1ocal port_ range
+echo "net. ipv4.ip_ 1ocal port_ range= 1024 65535">> /etc/sysct1. conf
+sysctl -p
+
+#这个也设置了
+sysctl -W net.ipv4.tcp_tw_recycle=1 #快速回收time_wait的连接
+sysctl -W net.ipv4.tcp_tw_reuse=1
+sysctl -W net.ipv4.tcp_timestamps=1
+
+3、可能的问题
+
+#如果发现自己的用例跑不上去，就看有linux日志
+#linux日志
+1、nf. conntrack: table full, dropping packet 表示防火墙的表满了，加大nf_conntrack_max 参数
+echo "net.nf_ conntrack max .1000000">> /etc/sysctl. conf
+
+# 2、TCP: too many orphaned sockets 表示内存不太够，拒绝分配，一般就是TCP缓神区内存不够用，调大一点
+# cat /proc/sys/net/ipv4/tcp. _mem
+echo "net. ipv4.tcp. mem = 786432 2097152 16777216">> /etc/sysctl.conf
+echo "net. ipv4.tcp. rmem = 4096 4096 16777216">> /etc/sysct1.conf
+echo "net.ipv4.tcp_ _wmem . 4096 4096 16777216>> /etc/sysctl. conf
+sysctl -P
+
+4、常规监控
+
+#查看某个端口的连接情况
+netstat -natlgrep -i "9001"|wc -1
+netstat -n | avk '/^tcp/ {++S[$NF]} END {for(a in S) print a, S[a]}'
+
+#网络接口的带宽使用情况
+#tcpdump htts://www.cnblogs.com/maifengqiang/p/3863168.html
+
+# glances工具
+yum install -y glances
+glances 控制台查看
+glances -s 服务器模式查看
+
+如果是自己的虚拟机,要记得关闭防火墙
+systemctl stop firewalld.service
 
 
 
