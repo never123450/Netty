@@ -1,6 +1,5 @@
 package shengsiyuan.nio;
 
-
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
@@ -52,8 +51,6 @@ public class NioTest11 {
                 buffer.clear();
             });
             System.out.println();
-
-
         }
     }
 }
